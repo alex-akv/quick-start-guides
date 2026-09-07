@@ -827,19 +827,22 @@ def chown_slurm(path: Path, mode=None) -> None:
 def json_cache(path: Path, writeback: bool = False):
     """Yield the dict stored in a JSON cache file.
 
-    A missing or unreadable file yields an empty cache. The context holds a
-    lock on a sidecar file for its whole duration, shared for reads and
-    exclusive for writeback, so concurrent read-modify-write cycles cannot
-    drop each other's entries. Writeback goes through a temporary file so
-    readers never observe a partial cache, and nothing is written back if the
-    body raises.
+    A missing file yields an empty cache; an unreadable one yields an empty
+    cache and logs a warning. The context holds a lock on a sidecar file for
+    its whole duration, shared for reads and exclusive for writeback, so
+    concurrent read-modify-write cycles cannot drop each other's entries.
+    Writeback goes through a temporary file so readers never observe a partial
+    cache, and nothing is written back if the body raises.
     """
     lock_fd = os.open(f"{path}.lock", os.O_RDONLY | os.O_CREAT, 0o644)
     try:
         fcntl.flock(lock_fd, fcntl.LOCK_EX if writeback else fcntl.LOCK_SH)
         try:
             cache = json.loads(path.read_text())
-        except (OSError, ValueError):
+        except FileNotFoundError:
+            cache = {}
+        except (OSError, ValueError) as e:
+            log.warning(f"Discarding unreadable cache {path}: {e}")
             cache = {}
 
         yield cache

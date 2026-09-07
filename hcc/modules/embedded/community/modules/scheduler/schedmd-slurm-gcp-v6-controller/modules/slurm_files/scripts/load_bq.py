@@ -235,6 +235,8 @@ def load_slurm_jobs(start, end):
     jobs = [dict(zip(bq_fields, line.split("|"))) for line in text]
 
     # The job index cache allows us to avoid sending duplicate jobs. This avoids a race condition with updating the database.
+    # An unreadable cache reads as empty and is logged, so every job in the window is re-sent
+    # rather than the run aborting.
     with json_cache(job_idx_cache_path) as job_idx_cache:
         job_rows = [
             make_job_row(job)
